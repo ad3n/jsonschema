@@ -4,11 +4,15 @@ import (
 	"fmt"
 	"reflect"
 	"slices"
+	"sync"
 )
 
 // Validate checks if the given instance conforms to the schema.
 // This method automatically detects the input type and delegates to the appropriate validation method.
 func (s *Schema) Validate(instance any) *EvaluationResult {
+	if s == nil {
+		return nilSchemaResult()
+	}
 	switch data := instance.(type) {
 	case []byte:
 		return s.ValidateJSON(data)
@@ -25,6 +29,9 @@ func (s *Schema) Validate(instance any) *EvaluationResult {
 // ValidateJSON validates JSON data provided as []byte.
 // The input is guaranteed to be treated as JSON data and parsed accordingly.
 func (s *Schema) ValidateJSON(data []byte) *EvaluationResult {
+	if s == nil {
+		return nilSchemaResult()
+	}
 	var parsed any
 	err := s.Compiler().jsonDecoder(data, &parsed)
 	if err != nil {
@@ -33,7 +40,8 @@ func (s *Schema) ValidateJSON(data []byte) *EvaluationResult {
 		return result
 	}
 
-	dynamicScope := NewDynamicScope()
+	dynamicScope := acquireDynamicScope()
+	defer releaseDynamicScope(dynamicScope)
 	result, _, _ := s.evaluate(parsed, dynamicScope)
 	return result
 }
@@ -41,7 +49,11 @@ func (s *Schema) ValidateJSON(data []byte) *EvaluationResult {
 // ValidateStruct validates Go struct data directly using reflection.
 // This method uses cached reflection data for optimal performance.
 func (s *Schema) ValidateStruct(instance any) *EvaluationResult {
-	dynamicScope := NewDynamicScope()
+	if s == nil {
+		return nilSchemaResult()
+	}
+	dynamicScope := acquireDynamicScope()
+	defer releaseDynamicScope(dynamicScope)
 	result, _, _ := s.evaluate(instance, dynamicScope)
 	return result
 }
@@ -49,9 +61,18 @@ func (s *Schema) ValidateStruct(instance any) *EvaluationResult {
 // ValidateMap validates map[string]any data directly.
 // This method provides optimal performance for pre-parsed JSON data.
 func (s *Schema) ValidateMap(data map[string]any) *EvaluationResult {
-	dynamicScope := NewDynamicScope()
+	if s == nil {
+		return nilSchemaResult()
+	}
+	dynamicScope := acquireDynamicScope()
+	defer releaseDynamicScope(dynamicScope)
 	result, _, _ := s.evaluate(data, dynamicScope)
 	return result
+}
+
+func nilSchemaResult() *EvaluationResult {
+	result := NewEvaluationResult(nil)
+	return result.AddError(NewEvaluationError("schema", "nil_schema", "Schema must not be nil"))
 }
 
 // processJSONBytes handles []byte input with smart JSON parsing
@@ -682,6 +703,38 @@ type DynamicScope struct {
 	instanceKeys []evaluationInstanceKey
 }
 
+const maxPooledDynamicScopeCapacity = 64
+
+var dynamicScopePool = sync.Pool{
+	New: func() any {
+		return &DynamicScope{
+			schemas:      make([]*Schema, 0, 8),
+			instanceKeys: make([]evaluationInstanceKey, 0, 8),
+		}
+	},
+}
+
+func acquireDynamicScope() *DynamicScope {
+	return dynamicScopePool.Get().(*DynamicScope)
+}
+
+func releaseDynamicScope(ds *DynamicScope) {
+	if ds == nil {
+		return
+	}
+
+	// Clear every live slot before pooling so schemas, input strings, and other
+	// caller-owned values cannot be retained beyond validation.
+	clear(ds.schemas)
+	clear(ds.instanceKeys)
+	if cap(ds.schemas) > maxPooledDynamicScopeCapacity || cap(ds.instanceKeys) > maxPooledDynamicScopeCapacity {
+		return
+	}
+	ds.schemas = ds.schemas[:0]
+	ds.instanceKeys = ds.instanceKeys[:0]
+	dynamicScopePool.Put(ds)
+}
+
 // NewDynamicScope creates and returns a new empty DynamicScope.
 func NewDynamicScope() *DynamicScope {
 	return &DynamicScope{
@@ -761,28 +814,34 @@ func (ds *DynamicScope) ContainsEvaluation(schema *Schema, instance any) bool {
 }
 
 type evaluationInstanceKey struct {
-	typeName string
-	kind     reflect.Kind
-	pointer  uintptr
-	value    string
+	typeOf  reflect.Type
+	pointer uintptr
+	value   any
+	isNil   bool
 }
 
 func newEvaluationInstanceKey(instance any) evaluationInstanceKey {
 	if instance == nil {
-		return evaluationInstanceKey{value: "<nil>"}
+		return evaluationInstanceKey{isNil: true}
 	}
 
 	rv := reflect.ValueOf(instance)
 	key := evaluationInstanceKey{
-		typeName: rv.Type().String(),
-		kind:     rv.Kind(),
+		typeOf: rv.Type(),
 	}
 
 	switch rv.Kind() {
 	case reflect.Chan, reflect.Func, reflect.Map, reflect.Pointer, reflect.Slice, reflect.UnsafePointer:
 		key.pointer = rv.Pointer()
 	default:
-		key.value = fmt.Sprintf("%#v", instance)
+		if rv.Type().Comparable() {
+			key.value = instance
+		} else {
+			// Non-comparable values cannot form cycles without an address-bearing
+			// container, so their type alone is sufficient for the conservative
+			// recursion guard used by unsupported caller values.
+			key.value = fmt.Sprintf("%#v", instance)
+		}
 	}
 
 	return key

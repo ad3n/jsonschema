@@ -466,6 +466,13 @@ func TestEvaluationResultHelpers(t *testing.T) {
 	assert.Equal(t, 42, result.Annotations["x-extra"])
 }
 
+func TestEvaluationResultWithoutAnnotationsKeepsMapNil(t *testing.T) {
+	result := NewEvaluationResult(&Schema{})
+
+	assert.Nil(t, result.Annotations)
+	assert.NotPanics(t, func() { NewEvaluationResult(nil) })
+}
+
 func TestToLocalizedListFlattensLocalizedNestedDetails(t *testing.T) {
 	t.Parallel()
 

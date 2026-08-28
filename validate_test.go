@@ -1388,6 +1388,37 @@ func TestDynamicScopeHelpers(t *testing.T) {
 	assert.Same(t, withAnchor, scope.Peek())
 }
 
+func TestValidateNilSchemaReturnsError(t *testing.T) {
+	var schema *Schema
+
+	for _, result := range []*EvaluationResult{
+		schema.Validate(nil),
+		schema.ValidateJSON(nil),
+		schema.ValidateMap(nil),
+		schema.ValidateStruct(nil),
+	} {
+		require.NotNil(t, result)
+		assert.False(t, result.IsValid())
+		assert.Equal(t, "nil_schema", result.Errors["schema"].Code)
+	}
+}
+
+func TestReleaseDynamicScopeClearsCallerReferences(t *testing.T) {
+	scope := &DynamicScope{
+		schemas:      make([]*Schema, 1, 1),
+		instanceKeys: make([]evaluationInstanceKey, 1, 1),
+	}
+	scope.schemas[0] = &Schema{Title: new("sensitive")}
+	scope.instanceKeys[0] = newEvaluationInstanceKey("sensitive input")
+	schemaSlots := scope.schemas
+	keySlots := scope.instanceKeys
+
+	releaseDynamicScope(scope)
+
+	assert.Nil(t, schemaSlots[0])
+	assert.Equal(t, evaluationInstanceKey{}, keySlots[0])
+}
+
 func TestProcessJSONBytes(t *testing.T) {
 	compiler := NewCompiler()
 	schema, err := compiler.Compile([]byte(`{"type":"object"}`))

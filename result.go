@@ -154,9 +154,18 @@ func (e *EvaluationResult) AddAnnotation(keyword string, annotation any) *Evalua
 
 // CollectAnnotations collects annotations from child results
 func (e *EvaluationResult) CollectAnnotations() *EvaluationResult {
-	if e.Annotations == nil {
-		e.Annotations = make(map[string]any)
+	if e == nil || e.schema == nil {
+		return e
 	}
+
+	// Most schemas do not carry annotations. Keep the map nil on that hot path;
+	// AddAnnotation and JSON encoding already handle a nil map correctly.
+	if e.schema.Title == nil && e.schema.Description == nil && e.schema.Default == nil &&
+		e.schema.Deprecated == nil && e.schema.ReadOnly == nil && e.schema.WriteOnly == nil &&
+		e.schema.Examples == nil {
+		return e
+	}
+	e.Annotations = make(map[string]any)
 
 	if e.schema.Title != nil {
 		e.Annotations["title"] = e.schema.Title
