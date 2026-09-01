@@ -1639,6 +1639,59 @@ func TestBooleanSchemasEvaluateObjectAndArrayInputs(t *testing.T) {
 	assert.False(t, deny.Validate("anything").IsValid())
 }
 
+func TestEvaluationAnnotationsAcrossApplicators(t *testing.T) {
+	tests := []struct {
+		name    string
+		schema  string
+		valid   any
+		invalid any
+	}{
+		{
+			name: "object annotations through allOf",
+			schema: `{
+				"allOf":[{"properties":{"known":true}}],
+				"unevaluatedProperties":false
+			}`,
+			valid:   map[string]any{"known": "value"},
+			invalid: map[string]any{"known": "value", "extra": true},
+		},
+		{
+			name: "object annotations through ref",
+			schema: `{
+				"$defs":{"known":{"properties":{"known":true}}},
+				"$ref":"#/$defs/known",
+				"unevaluatedProperties":false
+			}`,
+			valid:   map[string]any{"known": "value"},
+			invalid: map[string]any{"extra": true},
+		},
+		{
+			name: "array annotations through allOf",
+			schema: `{
+				"allOf":[{"prefixItems":[true]}],
+				"unevaluatedItems":false
+			}`,
+			valid:   []any{"known"},
+			invalid: []any{"known", "extra"},
+		},
+		{
+			name:    "scalar applicator",
+			schema:  `{"allOf":[{"type":"string"}]}`,
+			valid:   "value",
+			invalid: 42,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			schema, err := NewCompiler().Compile([]byte(tt.schema))
+			require.NoError(t, err)
+			assert.True(t, schema.ValidateStruct(tt.valid).IsValid())
+			assert.False(t, schema.ValidateStruct(tt.invalid).IsValid())
+		})
+	}
+}
+
 func TestEnumAndConstCompareNumericTypes(t *testing.T) {
 	assert.True(t, Enum(
 		int8(-2), int16(-3), int32(-4), int64(-5),

@@ -38,6 +38,75 @@ in `SPECS/`. Confirm the current implementation and tests against that contract,
 then make the smallest coherent change. If the code and SPEC disagree, resolve
 which reflects the intended public behavior before editing either one.
 
+## Mandatory Change Evidence
+
+Do not report a change complete without recording evidence for correctness,
+performance, and memory safety. Apply these requirements to every production
+code change; for documentation, test-only, or configuration-only changes,
+explicitly state why runtime benchmarks and memory-ownership tests are not
+applicable instead of inventing meaningless coverage.
+
+### Performance
+
+- Exercise the affected public production path, not only an internal helper. If
+  no representative benchmark exists, add the smallest benchmark that invokes
+  that production path with realistic input.
+- Capture a clean baseline from the pre-change code and compare it with the
+  final code using the same Go version, machine, benchmark arguments, fixture,
+  and environment. Do not compare against remembered or historical numbers.
+- Run relevant benchmarks with allocation reporting and repeated samples; use
+  `-benchmem` and normally at least `-count=5`. Use `benchstat` when available,
+  or report medians and sample variability when it is not.
+- Include `ns/op`, `B/op`, and `allocs/op` in the evidence. For throughput or
+  scaling changes, also benchmark representative small and large inputs and
+  report the metric that expresses the expected production benefit.
+- Treat noisy timing as inconclusive. Allocation changes may be reported when
+  stable, but do not claim a latency improvement unless repeated samples support
+  it. Keep or revert an optimization based on measured production impact, not
+  intuition or a benchmark-only fast path.
+- A behavior fix that is not intended to improve speed must still run the
+  relevant benchmark to detect regressions. Explain any material regression and
+  obtain user direction before accepting it.
+
+### Memory Safety and Ownership
+
+- Run affected tests with the race detector for every production code change.
+  Run `task test` before completion when the environment permits; otherwise run
+  the narrowest complete `go test -race` commands and disclose exactly what the
+  environment blocked.
+- Run `go vet ./...` for production code changes. Run the repository lint and
+  vulnerability checks when the change affects dependencies, concurrency,
+  parsing, codecs, reflection, generated code, or other trust boundaries.
+- Identify ownership for every changed slice, map, pointer, buffer, cached
+  value, callback, and pooled object: who creates it, who may mutate it, whether
+  it escapes, and when it becomes invalid or reusable.
+- Add observable behavior tests when ownership can be ambiguous. Mutate caller
+  inputs and returned values after the call to prove required copying or
+  aliasing behavior; cover concurrent access when values are shared; and prove
+  pooled objects are reset and retain no caller references before reuse.
+- Treat `sync.Pool`, caches, shared maps, lazy initialization, callbacks, and
+  package-level state as concurrency-sensitive. Test concurrent public entry
+  points with `-race`; do not rely on a mutex or `sync.Once` inspection alone.
+- Preserve references only for the documented lifetime. Clear retained slices,
+  maps, and pooled fields when they could keep caller data alive. Never return a
+  borrowed mutable buffer unless the public contract explicitly makes ownership
+  and lifetime clear.
+- Library code must remain free of `unsafe` unless the user explicitly approves
+  it and benchmarks demonstrate a necessary production benefit. Any approved
+  use requires focused tests for bounds, alignment, lifetime, aliasing, and
+  concurrency plus a safe fallback or a documented platform constraint.
+- Add or extend fuzz/property tests when a change touches recursive data,
+  reflection, parsing, numeric conversion, equality/hashing, cycles, or
+  attacker-controlled sizes. Assert no panic, bounded termination, and the
+  relevant invariant; fuzzing complements rather than replaces race tests.
+
+### Completion Report
+
+Summarize the production path measured, baseline and final benchmark data, race
+and static-analysis commands, ownership risks examined, and any checks that
+could not run. A passing test command without this mapping is not sufficient
+evidence that the change is safe.
+
 ## Architecture
 
 ```text
@@ -119,6 +188,9 @@ When you encounter a bug, limitation, or unexpected behavior in a dependency lib
 - Integration coverage lives in `tests/`, including the JSON Schema Test Suite fixtures under `tests/testdata/JSON-Schema-Test-Suite/`.
 - Keep examples under `examples/` runnable when public workflows change.
 - Benchmarks use `testing.B.Loop()` and live alongside the relevant implementation.
+- Ownership tests must assert externally observable isolation, aliasing,
+  lifetime, or concurrency behavior; do not add tests that merely mirror this
+  policy text.
 
 ```bash
 task test                            # Full test suite
@@ -152,7 +224,9 @@ task bench                           # Package benchmarks
 ## Performance
 
 - Prefer type-specific validation methods when performance matters: `ValidateJSON`, `ValidateStruct`, and `ValidateMap` avoid extra dispatch or conversions.
-- Benchmark hot paths before changing allocation-sensitive code such as unique item handling, schema compilation, or struct validation.
+- Benchmark every affected production path before and after a code change;
+  allocation-sensitive paths such as unique item handling, schema compilation,
+  struct validation, reflection caches, and pools require `-benchmem` evidence.
 - Keep benchmark coverage close to the implementation (`validate_bench_test.go`, `performance_bench_test.go`, `unique_items_bench_test.go`).
 
 ## Linting

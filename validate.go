@@ -97,8 +97,7 @@ func (s *Schema) evaluate(instance any, dynamicScope *DynamicScope) (*Evaluation
 
 	if dynamicScope.ContainsEvaluation(s, instance) {
 		result := NewEvaluationResult(s)
-		evaluatedProps := make(map[string]bool)
-		evaluatedItems := make(map[int]bool)
+		evaluatedProps, evaluatedItems := newEvaluationAnnotations(instance)
 		s.processBasicValidationWithoutRefs(instance, result, evaluatedProps, evaluatedItems)
 		return result, evaluatedProps, evaluatedItems
 	}
@@ -107,8 +106,7 @@ func (s *Schema) evaluate(instance any, dynamicScope *DynamicScope) (*Evaluation
 	defer dynamicScope.Pop()
 
 	result := NewEvaluationResult(s)
-	evaluatedProps := make(map[string]bool)
-	evaluatedItems := make(map[int]bool)
+	evaluatedProps, evaluatedItems := newEvaluationAnnotations(instance)
 
 	if s.Boolean != nil {
 		if err := s.evaluateBoolean(instance, evaluatedProps, evaluatedItems); err != nil {
@@ -125,6 +123,33 @@ func (s *Schema) evaluate(instance any, dynamicScope *DynamicScope) (*Evaluation
 	s.processValidationKeywords(instance, dynamicScope, result, evaluatedProps, evaluatedItems)
 
 	return result, evaluatedProps, evaluatedItems
+}
+
+// newEvaluationAnnotations allocates only the annotation map that can be
+// populated for the current instance. JSON Schema applicators evaluate child
+// schemas against the same instance, so scalar evaluations cannot produce
+// property or item annotations, objects cannot produce item annotations, and
+// arrays cannot produce property annotations.
+func newEvaluationAnnotations(instance any) (map[string]bool, map[int]bool) {
+	if _, ok := instance.([]any); ok {
+		return nil, make(map[int]bool)
+	}
+
+	rv := reflect.ValueOf(instance)
+	for rv.IsValid() && rv.Kind() == reflect.Pointer {
+		if rv.IsNil() {
+			return nil, nil
+		}
+		rv = rv.Elem()
+	}
+	if !rv.IsValid() {
+		return nil, nil
+	}
+
+	if rv.Kind() == reflect.Struct || (rv.Kind() == reflect.Map && rv.Type().Key().Kind() == reflect.String) {
+		return make(map[string]bool), nil
+	}
+	return nil, nil
 }
 
 // preprocessByteInput handles []byte input intelligently
@@ -555,16 +580,15 @@ func evaluateNumeric(schema *Schema, data any) []*EvaluationError {
 		return nil
 	}
 
-	dataType := getDataType(data)
-	if dataType != "number" && dataType != "integer" {
+	value, numeric := numberRat(data)
+	if !numeric {
 		return nil
 	}
 
-	value := NewRat(data)
 	if value == nil {
 		return []*EvaluationError{
 			NewEvaluationError("type", "invalid_numeric", "Value is {received} but should be numeric", map[string]any{
-				"actual_type": dataType,
+				"actual_type": "unknown",
 			}),
 		}
 	}

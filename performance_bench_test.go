@@ -1,6 +1,7 @@
 package jsonschema
 
 import (
+	stdjson "encoding/json"
 	"fmt"
 	"testing"
 )
@@ -178,6 +179,30 @@ func BenchmarkValidateNumberConstraints(b *testing.B) {
 	}
 }
 
+// BenchmarkValidateNumberConstraintRepresentations measures the production
+// validation path for the numeric representations accepted by the package.
+func BenchmarkValidateNumberConstraintRepresentations(b *testing.B) {
+	schema := `{"type":"number","minimum":0,"maximum":100,"multipleOf":5}`
+
+	compiler := NewCompiler()
+	s, err := compiler.Compile([]byte(schema))
+	if err != nil {
+		b.Fatal(err)
+	}
+
+	for name, value := range map[string]any{
+		"int64":       int64(50),
+		"float64":     float64(50),
+		"json.Number": stdjson.Number("50"),
+	} {
+		b.Run(name, func(b *testing.B) {
+			for b.Loop() {
+				_ = s.ValidateStruct(value)
+			}
+		})
+	}
+}
+
 // BenchmarkValidateNumberNoConstraints benchmarks number validation without constraints (fast path)
 func BenchmarkValidateNumberNoConstraints(b *testing.B) {
 	schema := `{"type": "number"}`
@@ -191,6 +216,43 @@ func BenchmarkValidateNumberNoConstraints(b *testing.B) {
 	b.ResetTimer()
 	for b.Loop() {
 		_ = s.ValidateStruct(50.0)
+	}
+}
+
+// BenchmarkValidateAnnotationTracking measures the public validation paths
+// whose evaluations need zero or one annotation-tracking map.
+func BenchmarkValidateAnnotationTracking(b *testing.B) {
+	compiler := NewCompiler()
+
+	scalarSchema, err := compiler.Compile([]byte(`{"type":"string"}`))
+	if err != nil {
+		b.Fatal(err)
+	}
+	objectSchema, err := compiler.Compile([]byte(`{"type":"object","properties":{"name":{"type":"string"}}}`))
+	if err != nil {
+		b.Fatal(err)
+	}
+	arraySchema, err := compiler.Compile([]byte(`{"type":"array","items":{"type":"string"}}`))
+	if err != nil {
+		b.Fatal(err)
+	}
+
+	benchmarks := []struct {
+		name     string
+		schema   *Schema
+		instance any
+	}{
+		{name: "scalar", schema: scalarSchema, instance: "value"},
+		{name: "object", schema: objectSchema, instance: map[string]any{"name": "value"}},
+		{name: "array", schema: arraySchema, instance: []any{"value"}},
+	}
+
+	for _, benchmark := range benchmarks {
+		b.Run(benchmark.name, func(b *testing.B) {
+			for b.Loop() {
+				_ = benchmark.schema.ValidateStruct(benchmark.instance)
+			}
+		})
 	}
 }
 

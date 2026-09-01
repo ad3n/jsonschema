@@ -67,19 +67,19 @@ func numberRat(value any) (*Rat, bool) {
 		return nil, false
 	}
 
-	var text string
 	switch rv.Kind() {
 	case reflect.Int, reflect.Int8, reflect.Int16, reflect.Int32, reflect.Int64:
-		text = strconv.FormatInt(rv.Int(), 10)
+		return &Rat{new(big.Rat).SetInt64(rv.Int())}, true
 	case reflect.Uint, reflect.Uint8, reflect.Uint16, reflect.Uint32, reflect.Uint64:
-		text = strconv.FormatUint(rv.Uint(), 10)
+		integer := new(big.Int).SetUint64(rv.Uint())
+		return &Rat{new(big.Rat).SetInt(integer)}, true
 	case reflect.Float32, reflect.Float64:
-		text = strconv.FormatFloat(rv.Float(), 'g', -1, rv.Type().Bits())
+		text := strconv.FormatFloat(rv.Float(), 'g', -1, rv.Type().Bits())
+		rat, _ := parseRat(text)
+		return rat, true
 	default:
 		return nil, false
 	}
-	rat, _ := parseRat(text)
-	return rat, true
 }
 
 func jsonNumberToken(number stdjson.Number) (jsontext.Value, bool) {
