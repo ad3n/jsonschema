@@ -18,7 +18,6 @@ require (
 
 require (
 	github.com/goccy/go-yaml v1.19.2
-	github.com/google/uuid v1.6.0
 	github.com/kaptinlin/go-i18n v0.6.3
 	github.com/kaptinlin/jsonpointer v0.4.28
 	github.com/stretchr/testify v1.11.1

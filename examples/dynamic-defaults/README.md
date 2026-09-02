@@ -20,7 +20,8 @@ go run dynamic_defaults.go
 package main
 
 import (
-    "github.com/google/uuid"
+    "uuid"
+
     jsonschema "github.com/ad3n/jsonschema"
 )
 

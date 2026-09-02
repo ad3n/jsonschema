@@ -4,8 +4,7 @@ package main
 import (
 	"fmt"
 	"log"
-
-	"github.com/google/uuid"
+	"uuid"
 
 	jsonschema "github.com/ad3n/jsonschema"
 )
