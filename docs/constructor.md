@@ -15,7 +15,7 @@ The Constructor API provides a type-safe way to build JSON Schema using Go code.
 ## Quick Start
 
 ```go
-import "github.com/kaptinlin/jsonschema"
+import "github.com/ad3n/jsonschema"
 
 // Create a user schema
 userSchema := jsonschema.Object(

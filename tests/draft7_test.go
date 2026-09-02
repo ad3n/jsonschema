@@ -5,7 +5,7 @@ import (
 	"slices"
 	"testing"
 
-	"github.com/kaptinlin/jsonschema"
+	"github.com/ad3n/jsonschema"
 )
 
 func TestDraft7CoreSuite(t *testing.T) {

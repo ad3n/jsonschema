@@ -9,7 +9,7 @@ import (
 	"strings"
 	"text/template"
 
-	"github.com/kaptinlin/jsonschema"
+	"github.com/ad3n/jsonschema"
 )
 
 // FileWriter handles writing generated Go code to files
@@ -105,7 +105,7 @@ func (w *FileWriter) WriteGeneratedCode(filePath, packageName string, methods []
 
 	templateData := TemplateData{
 		Package: w.getPackageName(packageName),
-		Imports: []string{"github.com/kaptinlin/jsonschema"},
+		Imports: []string{"github.com/ad3n/jsonschema"},
 		Methods: methods,
 	}
 

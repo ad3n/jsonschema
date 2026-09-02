@@ -75,7 +75,7 @@ formatters:
   settings:
     goimports:
       local-prefixes:
-        - github.com/kaptinlin/jsonschema
+        - github.com/ad3n/jsonschema
 
 issues:
   max-issues-per-linter: 0

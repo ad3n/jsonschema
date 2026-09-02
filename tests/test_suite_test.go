@@ -13,7 +13,7 @@ import (
 
 	"encoding/json/v2"
 
-	"github.com/kaptinlin/jsonschema"
+	"github.com/ad3n/jsonschema"
 )
 
 // startTestServer starts an HTTP server for serving remote schemas.

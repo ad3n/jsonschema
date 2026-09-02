@@ -11,7 +11,7 @@ import (
 	"encoding/json/jsontext"
 	"encoding/json/v2"
 
-	"github.com/kaptinlin/jsonschema"
+	"github.com/ad3n/jsonschema"
 )
 
 // TestConstForTestSuite executes the const validation tests for Schema Test Suite.

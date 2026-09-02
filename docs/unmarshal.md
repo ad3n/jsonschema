@@ -5,7 +5,7 @@ The JSON Schema library provides powerful unmarshaling capabilities that apply s
 ## Quick Start
 
 ```go
-import "github.com/kaptinlin/jsonschema"
+import "github.com/ad3n/jsonschema"
 
 // Compile schema
 compiler := jsonschema.NewCompiler()

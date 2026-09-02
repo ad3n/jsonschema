@@ -14,7 +14,7 @@ import (
 
 	goi18n "github.com/kaptinlin/go-i18n"
 
-	"github.com/kaptinlin/jsonschema"
+	"github.com/ad3n/jsonschema"
 )
 
 // ErrUnsupportedLocale is returned by New for a locale outside the built-in catalog.

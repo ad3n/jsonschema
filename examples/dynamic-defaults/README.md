@@ -21,7 +21,7 @@ package main
 
 import (
     "github.com/google/uuid"
-    jsonschema "github.com/kaptinlin/jsonschema"
+    jsonschema "github.com/ad3n/jsonschema"
 )
 
 func main() {

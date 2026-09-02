@@ -2547,7 +2547,7 @@ func TestFromStructWithInvalidPattern(t *testing.T) {
 	})
 
 	// Regression test for GitHub Issue #80: Pattern validation for schemas generated from structs
-	// https://github.com/kaptinlin/jsonschema/issues/80
+	// https://github.com/ad3n/jsonschema/issues/80
 	// Ensures that invalid regex patterns in nested struct tags are caught at schema
 	// generation time with proper ErrRegexValidation wrapping
 	t.Run("nested_struct_with_unsupported_lookahead_pattern", func(t *testing.T) {

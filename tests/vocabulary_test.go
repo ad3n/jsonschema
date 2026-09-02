@@ -3,7 +3,7 @@ package tests
 import (
 	"testing"
 
-	"github.com/kaptinlin/jsonschema"
+	"github.com/ad3n/jsonschema"
 )
 
 func TestVocabularyForTestSuite(t *testing.T) {

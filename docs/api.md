@@ -283,7 +283,7 @@ for field, message := range list.Errors {
 Converts result with localized error messages.
 
 ```go
-zh, _ := i18n.New("zh-Hans") // import "github.com/kaptinlin/jsonschema/i18n"
+zh, _ := i18n.New("zh-Hans") // import "github.com/ad3n/jsonschema/i18n"
 list := result.ToLocalizedList(zh)
 ```
 
@@ -306,7 +306,7 @@ if !result.IsValid() {
 Same as `DetailedErrors`, rendered through a `Translator`. Missing translations fall back to the built-in English message.
 
 ```go
-zh, _ := i18n.New("zh-Hans") // import "github.com/kaptinlin/jsonschema/i18n"
+zh, _ := i18n.New("zh-Hans") // import "github.com/ad3n/jsonschema/i18n"
 detailedErrors := result.LocalizedDetailedErrors(zh)
 for path, message := range detailedErrors {
     fmt.Printf("字段 '%s': %s\n", path, message) // Chinese messages
@@ -381,7 +381,7 @@ Return `ok=false` when no translation exists; callers fall back to the built-in 
 Creates a translator bound to one locale, backed by the built-in catalogs. Unknown locales are an error here rather than a silent fall back to English.
 
 ```go
-import "github.com/kaptinlin/jsonschema/i18n"
+import "github.com/ad3n/jsonschema/i18n"
 
 zh, err := i18n.New("zh-Hans")
 if err != nil {
@@ -453,7 +453,7 @@ func ValidateWithLocale(schema *jsonschema.Schema, data interface{}, locale stri
         return nil
     }
     
-    translator, err := i18n.New(locale) // import "github.com/kaptinlin/jsonschema/i18n"
+    translator, err := i18n.New(locale) // import "github.com/ad3n/jsonschema/i18n"
     if err != nil {
         return err
     }

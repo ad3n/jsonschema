@@ -6,7 +6,7 @@ import (
 
 // TestNotWithRefAndDefinitions tests that $ref resolution works correctly inside not clauses
 // with backward-compatible "definitions" keyword.
-// This is a regression test for https://github.com/kaptinlin/jsonschema/issues/XXX
+// This is a regression test for https://github.com/ad3n/jsonschema/issues/XXX
 func TestNotWithRefAndDefinitions(t *testing.T) {
 	// Test with "definitions" (Draft-7, backward compatibility)
 	schemaWithDefinitions := `{

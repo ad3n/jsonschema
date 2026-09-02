@@ -1,4 +1,4 @@
-module github.com/kaptinlin/jsonschema
+module github.com/ad3n/jsonschema
 
 go 1.27
 

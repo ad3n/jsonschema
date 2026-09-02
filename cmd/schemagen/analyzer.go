@@ -9,7 +9,7 @@ import (
 	"slices"
 	"strings"
 
-	"github.com/kaptinlin/jsonschema/pkg/tagparser"
+	"github.com/ad3n/jsonschema/pkg/tagparser"
 )
 
 // StructAnalyzer analyzes Go source files to find structs requiring code generation
@@ -144,7 +144,7 @@ func (a *StructAnalyzer) analyzeStruct(typeSpec *ast.TypeSpec, structType *ast.S
 
 	// Determine required imports
 	imports := []string{
-		"github.com/kaptinlin/jsonschema", // Always need jsonschema package
+		"github.com/ad3n/jsonschema", // Always need jsonschema package
 	}
 
 	info := &GenerationInfo{

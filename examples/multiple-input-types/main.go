@@ -5,7 +5,7 @@ import (
 	"fmt"
 	"log"
 
-	"github.com/kaptinlin/jsonschema"
+	"github.com/ad3n/jsonschema"
 )
 
 // User struct for demonstrations

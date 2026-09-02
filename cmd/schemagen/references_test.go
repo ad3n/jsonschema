@@ -7,7 +7,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"github.com/kaptinlin/jsonschema/pkg/tagparser"
+	"github.com/ad3n/jsonschema/pkg/tagparser"
 )
 
 func TestReferenceAnalyzer_AnalyzeTypeStringDetectsMapValueStruct(t *testing.T) {

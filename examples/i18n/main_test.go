@@ -5,9 +5,9 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/kaptinlin/jsonschema"
-	"github.com/kaptinlin/jsonschema/i18n"
-	"github.com/kaptinlin/jsonschema/internal/testutil"
+	"github.com/ad3n/jsonschema"
+	"github.com/ad3n/jsonschema/i18n"
+	"github.com/ad3n/jsonschema/internal/testutil"
 )
 
 func mustSchema(t *testing.T) *jsonschema.Schema {

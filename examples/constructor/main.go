@@ -4,7 +4,7 @@ package main
 import (
 	"fmt"
 
-	"github.com/kaptinlin/jsonschema"
+	"github.com/ad3n/jsonschema"
 )
 
 func main() {

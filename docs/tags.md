@@ -9,7 +9,7 @@ package main
 
 import (
     "fmt"
-    "github.com/kaptinlin/jsonschema"
+    "github.com/ad3n/jsonschema"
 )
 
 type User struct {
@@ -44,7 +44,7 @@ func main() {
 ## Installation
 
 ```bash
-go get github.com/kaptinlin/jsonschema
+go get github.com/ad3n/jsonschema
 ```
 
 ## Tag Syntax
@@ -559,7 +559,7 @@ type Playlist struct {
 
 ```bash
 # Install the code generator
-go install github.com/kaptinlin/jsonschema/cmd/schemagen@latest
+go install github.com/ad3n/jsonschema/cmd/schemagen@latest
 ```
 
 ### Basic Usage

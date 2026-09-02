@@ -8,7 +8,7 @@ import (
 
 	"encoding/json/v2"
 
-	"github.com/kaptinlin/jsonschema"
+	"github.com/ad3n/jsonschema"
 )
 
 // TestIDForTestSuite executes the id validation tests for Schema Test Suite.

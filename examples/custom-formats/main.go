@@ -6,7 +6,7 @@ import (
 	"fmt"
 	"math"
 
-	"github.com/kaptinlin/jsonschema"
+	"github.com/ad3n/jsonschema"
 )
 
 var (

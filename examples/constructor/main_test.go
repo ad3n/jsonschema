@@ -4,7 +4,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/kaptinlin/jsonschema/internal/testutil"
+	"github.com/ad3n/jsonschema/internal/testutil"
 )
 
 func TestMain_PrintsConstructorExamples(t *testing.T) {

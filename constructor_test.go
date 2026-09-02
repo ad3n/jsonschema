@@ -4,7 +4,7 @@ import (
 	"fmt"
 	"log"
 
-	"github.com/kaptinlin/jsonschema"
+	"github.com/ad3n/jsonschema"
 )
 
 func Example_object() {

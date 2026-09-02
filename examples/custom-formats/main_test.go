@@ -5,7 +5,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/kaptinlin/jsonschema/internal/testutil"
+	"github.com/ad3n/jsonschema/internal/testutil"
 )
 
 func TestValidateHelpers(t *testing.T) {

@@ -6,8 +6,8 @@ import (
 	"slices"
 	"strings"
 
-	"github.com/kaptinlin/jsonschema"
-	"github.com/kaptinlin/jsonschema/pkg/tagparser"
+	"github.com/ad3n/jsonschema"
+	"github.com/ad3n/jsonschema/pkg/tagparser"
 )
 
 // CodeGenerator generates Go code for JSON Schema creation

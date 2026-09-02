@@ -26,7 +26,7 @@ This example demonstrates how the `DetailedErrors` method integrates with the op
 ### Basic Usage
 
 ```go
-import "github.com/kaptinlin/jsonschema/i18n"
+import "github.com/ad3n/jsonschema/i18n"
 
 // Default English errors (root package, zero Intl dependencies)
 errors := result.DetailedErrors()

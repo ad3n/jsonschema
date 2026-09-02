@@ -6,8 +6,8 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"github.com/kaptinlin/jsonschema"
-	"github.com/kaptinlin/jsonschema/i18n"
+	"github.com/ad3n/jsonschema"
+	"github.com/ad3n/jsonschema/i18n"
 )
 
 func TestNewSupportsAllEmbeddedLocales(t *testing.T) {

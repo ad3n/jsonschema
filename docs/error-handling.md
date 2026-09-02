@@ -209,7 +209,7 @@ if !result.IsValid() {
 Localization lives in the optional `i18n` subpackage; the root package stays free of translation frameworks:
 
 ```go
-import "github.com/kaptinlin/jsonschema/i18n"
+import "github.com/ad3n/jsonschema/i18n"
 
 zh, _ := i18n.New("zh-Hans")
 
@@ -411,7 +411,7 @@ flat := result.ToList(false)
 ### Localized Error Messages
 
 ```go
-import "github.com/kaptinlin/jsonschema/i18n"
+import "github.com/ad3n/jsonschema/i18n"
 
 // Create a translator for Chinese
 zh, _ := i18n.New("zh-Hans")
@@ -776,7 +776,7 @@ package main
 import (
     "errors"
     "log"
-    "github.com/kaptinlin/jsonschema"
+    "github.com/ad3n/jsonschema"
 )
 
 type User struct {
