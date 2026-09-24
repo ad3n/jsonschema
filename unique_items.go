@@ -30,40 +30,33 @@ type jsonComparisonState struct {
 	b []jsonVisit
 }
 
-// evaluateUniqueItems checks if all elements in the array are unique when the "uniqueItems" property is set to true.
-// According to the JSON Schema Draft 2020-12:
-//   - If "uniqueItems" is false, the data always validates successfully.
-//   - If "uniqueItems" is true, the data validates successfully only if all elements in the array are unique.
-//
-// This implementation uses hash-based comparison for O(n) average complexity.
-// Each item is hashed using maphash, and deep equality is only checked on hash collisions.
-//
-// Reference: https://json-schema.org/draft/2020-12/json-schema-validation#name-uniqueitems
 func evaluateUniqueItems(schema *Schema, data []any) *EvaluationError {
-	// If uniqueItems is false or not set, no validation is needed
 	if schema.UniqueItems == nil || !*schema.UniqueItems {
 		return nil
 	}
 
-	// Determine the array length to validate
 	maxLength := len(data)
 
-	// If items is false, only validate items defined by prefixItems
 	if schema.Items != nil && schema.Items.Boolean != nil && !*schema.Items.Boolean {
-		if schema.PrefixItems != nil {
-			maxLength = min(len(schema.PrefixItems), len(data))
-		} else {
-			maxLength = 0
-		}
+		maxLength = min(len(schema.PrefixItems), len(data))
 	}
 
-	// If there are 0 or 1 items, they are always unique
 	if maxLength <= 1 {
 		return nil
 	}
 
-	// Use hash-based uniqueness check
-	hashes := make(map[uint64][]int, maxLength) // hash -> indices
+	var hashes map[uint64][]int
+	if maxLength <= maxPooledUniqueItems {
+		pooled := uniqueItemsPool.Get().(*map[uint64][]int)
+		defer releaseUniqueItems(pooled)
+
+		hashes = *pooled
+	}
+
+	if hashes == nil {
+		hashes = make(map[uint64][]int, maxLength)
+	}
+
 	seed := maphash.MakeSeed()
 
 	for i := range maxLength {
@@ -73,7 +66,6 @@ func evaluateUniqueItems(schema *Schema, data []any) *EvaluationError {
 		hashJSONValue(&h, item)
 		hashValue := h.Sum64()
 
-		// Check for hash collisions
 		if indices := hashes[hashValue]; len(indices) > 0 {
 			for _, j := range indices {
 				if deepEqualJSON(item, data[j]) {
@@ -85,6 +77,7 @@ func evaluateUniqueItems(schema *Schema, data []any) *EvaluationError {
 				}
 			}
 		}
+
 		hashes[hashValue] = append(hashes[hashValue], i)
 	}
 
