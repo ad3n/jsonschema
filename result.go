@@ -162,7 +162,7 @@ func (e *EvaluationResult) CollectAnnotations() *EvaluationResult {
 	// AddAnnotation and JSON encoding already handle a nil map correctly.
 	if e.schema.Title == nil && e.schema.Description == nil && e.schema.Default == nil &&
 		e.schema.Deprecated == nil && e.schema.ReadOnly == nil && e.schema.WriteOnly == nil &&
-		e.schema.Examples == nil {
+		e.schema.Examples == nil && e.schema.Format == nil {
 		return e
 	}
 	e.Annotations = make(map[string]any)
@@ -187,6 +187,9 @@ func (e *EvaluationResult) CollectAnnotations() *EvaluationResult {
 	}
 	if e.schema.Examples != nil {
 		e.Annotations["examples"] = e.schema.Examples
+	}
+	if e.schema.Format != nil {
+		e.Annotations["format"] = e.schema.Format
 	}
 
 	return e
