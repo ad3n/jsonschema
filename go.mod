@@ -1,6 +1,6 @@
 module github.com/ad3n/jsonschema
 
-go 1.27.3
+go 1.27.4
 
 require (
 	github.com/agentable/go-intl v0.2.14 // indirect

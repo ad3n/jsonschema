@@ -1067,18 +1067,19 @@ func TestCustomFormatValidatorLogic(t *testing.T) {
 	})
 }
 
-// TestAssertFormatWithStructValidation tests format validation with struct validation
 func TestAssertFormatWithStructValidation(t *testing.T) {
 	type Event struct {
 		ID   string `json:"id" jsonschema:"format=uuid"`
 		Name string `json:"name" jsonschema:"required"`
 	}
 
+	options := jsonschema.DefaultStructTagOptions()
+	options.CacheEnabled = false
+
 	t.Run("default - format not asserted", func(t *testing.T) {
-		schema, err := jsonschema.FromStruct[Event]()
+		schema, err := jsonschema.FromStructWithOptions[Event](options)
 		require.NoError(t, err)
 
-		// Invalid UUID should pass because format is annotation-only by default
 		result := schema.ValidateStruct(Event{
 			ID:   "invalid-uuid",
 			Name: "test",
@@ -1090,18 +1091,16 @@ func TestAssertFormatWithStructValidation(t *testing.T) {
 		compiler := jsonschema.NewCompiler()
 		compiler.SetAssertFormat(true)
 
-		schema, err := jsonschema.FromStruct[Event]()
+		schema, err := jsonschema.FromStructWithOptions[Event](options)
 		require.NoError(t, err)
 		schema.SetCompiler(compiler)
 
-		// Invalid UUID should fail
 		result := schema.ValidateStruct(Event{
 			ID:   "invalid-uuid",
 			Name: "test",
 		})
 		assert.False(t, result.IsValid(), "invalid UUID should fail with AssertFormat=true")
 
-		// Valid UUID should pass
 		result = schema.ValidateStruct(Event{
 			ID:   "550e8400-e29b-41d4-a716-446655440000",
 			Name: "test",

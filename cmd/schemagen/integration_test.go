@@ -15,7 +15,17 @@ import (
 	"github.com/ad3n/jsonschema/internal/testutil"
 )
 
-func resetFlagsForTest() {
+func resetFlagsForTest(t *testing.T) {
+	t.Helper()
+	oldFlags := flag.CommandLine
+	oldSuffix, oldPackage := outputSuffix, packageName
+	oldVerbose, oldDryRun, oldForce, oldHelp := verbose, dryRun, force, help
+	t.Cleanup(func() {
+		flag.CommandLine = oldFlags
+		outputSuffix, packageName = oldSuffix, oldPackage
+		verbose, dryRun, force, help = oldVerbose, oldDryRun, oldForce, oldHelp
+	})
+
 	flag.CommandLine = flag.NewFlagSet("schemagen", flag.ContinueOnError)
 	flag.CommandLine.SetOutput(io.Discard)
 	outputSuffix = flag.CommandLine.String("suffix", "_schema.go", "Output file suffix")
@@ -174,7 +184,7 @@ func TestFileWriter_WriteGeneratedCodeUsesDefaultSuffixAndVerboseOutput(t *testi
 
 func TestShowHelp_PrintsUsage(t *testing.T) {
 	// No t.Parallel(): mutates package-global flag state and captures process-wide stdout.
-	resetFlagsForTest()
+	resetFlagsForTest(t)
 
 	out := testutil.CaptureStdout(t, func() {
 		flag.CommandLine.SetOutput(os.Stdout)
@@ -188,7 +198,7 @@ func TestShowHelp_PrintsUsage(t *testing.T) {
 
 func TestMain_HelpFlagPrintsUsage(t *testing.T) {
 	// No t.Parallel(): mutates os.Args, package-global flag state, and captures process-wide stdout.
-	resetFlagsForTest()
+	resetFlagsForTest(t)
 	oldArgs := os.Args
 	defer func() {
 		os.Args = oldArgs
@@ -206,7 +216,7 @@ func TestMain_HelpFlagPrintsUsage(t *testing.T) {
 
 func TestMain_DryRunProcessesPackage(t *testing.T) {
 	// No t.Parallel(): mutates os.Args, package-global flag state, and captures process-wide stdout.
-	resetFlagsForTest()
+	resetFlagsForTest(t)
 	oldArgs := os.Args
 	defer func() {
 		os.Args = oldArgs
@@ -232,7 +242,7 @@ type User struct {
 	require.NoError(t, err)
 	t.Chdir(dir)
 
-	resetFlagsForTest()
+	resetFlagsForTest(t)
 	oldArgs := os.Args
 	defer func() {
 		os.Args = oldArgs

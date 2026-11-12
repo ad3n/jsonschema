@@ -3,6 +3,7 @@ package jsonschema
 import (
 	"encoding/binary"
 	"hash/maphash"
+	"math/big"
 	"reflect"
 	"slices"
 )
@@ -58,12 +59,13 @@ func evaluateUniqueItems(schema *Schema, data []any) *EvaluationError {
 	}
 
 	seed := maphash.MakeSeed()
+	number := Rat{new(big.Rat)}
 
 	for i := range maxLength {
 		item := data[i]
 		var h maphash.Hash
 		h.SetSeed(seed)
-		hashJSONValue(&h, item)
+		hashJSONValue(&h, item, &number)
 		hashValue := h.Sum64()
 
 		if indices := hashes[hashValue]; len(indices) > 0 {
@@ -84,19 +86,19 @@ func evaluateUniqueItems(schema *Schema, data []any) *EvaluationError {
 	return nil
 }
 
-// hashJSONValue writes a deterministic hash of a JSON value to the hash.
-func hashJSONValue(h *maphash.Hash, v any) {
+func hashJSONValue(h *maphash.Hash, v any, number *Rat) {
 	var inline [8]jsonVisit
-	hashJSONValueState(h, v, inline[:0])
+	hashJSONValueState(h, v, inline[:0], number)
 }
 
-func hashJSONValueState(h *maphash.Hash, v any, active []jsonVisit) {
-	if number, ok := numberRat(v); ok {
+func hashJSONValueState(h *maphash.Hash, v any, active []jsonVisit, scratch *Rat) {
+	if number, ok := numberRatInto(scratch, v); ok {
 		if number == nil {
 			_ = h.WriteByte(hashUnsupported)
 			return
 		}
-		writeHashString(h, hashNumber, number.RatString())
+
+		writeHashNumber(h, number)
 		return
 	}
 
@@ -121,9 +123,10 @@ func hashJSONValueState(h *maphash.Hash, v any, active []jsonVisit) {
 			_ = h.WriteByte(hashUnsupported)
 			return
 		}
+
 		writeHashLength(h, hashArray, len(val))
 		for _, item := range val {
-			hashJSONValueState(h, item, active)
+			hashJSONValueState(h, item, active, scratch)
 		}
 
 	case map[string]any:
@@ -133,20 +136,39 @@ func hashJSONValueState(h *maphash.Hash, v any, active []jsonVisit) {
 			_ = h.WriteByte(hashUnsupported)
 			return
 		}
-		keys := make([]string, 0, len(val))
+
+		var inline [16]string
+		keys := inline[:0]
+		if len(val) > len(inline) {
+			keys = make([]string, 0, len(val))
+		}
+
 		for key := range val {
 			keys = append(keys, key)
 		}
+
 		slices.Sort(keys)
 		writeHashLength(h, hashObject, len(keys))
 		for _, key := range keys {
 			writeHashString(h, hashString, key)
-			hashJSONValueState(h, val[key], active)
+			hashJSONValueState(h, val[key], active, scratch)
 		}
 
 	default:
-		hashJSONValueReflect(h, reflect.ValueOf(v), active)
+		hashJSONValueReflect(h, reflect.ValueOf(v), active, scratch)
 	}
+}
+
+func writeHashNumber(h *maphash.Hash, number *Rat) {
+	var inline [64]byte
+	value := number.Num().Append(inline[:0], 10)
+	if !number.IsInt() {
+		value = append(value, '/')
+		value = number.Denom().Append(value, 10)
+	}
+
+	writeHashLength(h, hashNumber, len(value))
+	_, _ = h.Write(value)
 }
 
 func writeHashLength(h *maphash.Hash, tag byte, length int) {
@@ -161,26 +183,27 @@ func writeHashString(h *maphash.Hash, tag byte, value string) {
 	_, _ = h.WriteString(value)
 }
 
-// hashJSONValueReflect handles hashing for types that need reflection.
-func hashJSONValueReflect(h *maphash.Hash, rv reflect.Value, active []jsonVisit) {
+func hashJSONValueReflect(h *maphash.Hash, rv reflect.Value, active []jsonVisit, scratch *Rat) {
 	var ok bool
 	rv, ok = indirectJSONValue(rv)
 	if !ok {
 		_ = h.WriteByte(hashUnsupported)
 		return
 	}
+
 	if !rv.IsValid() {
 		_ = h.WriteByte(hashNull)
 		return
 	}
 
 	if rv.CanInterface() {
-		if number, ok := numberRat(rv.Interface()); ok {
+		if number, ok := numberRatInto(scratch, rv.Interface()); ok {
 			if number == nil {
 				_ = h.WriteByte(hashUnsupported)
 				return
 			}
-			writeHashString(h, hashNumber, number.RatString())
+
+			writeHashNumber(h, number)
 			return
 		}
 	}
@@ -196,7 +219,7 @@ func hashJSONValueReflect(h *maphash.Hash, rv reflect.Value, active []jsonVisit)
 	case reflect.Int, reflect.Int8, reflect.Int16, reflect.Int32, reflect.Int64,
 		reflect.Uint, reflect.Uint8, reflect.Uint16, reflect.Uint32, reflect.Uint64,
 		reflect.Float32, reflect.Float64:
-		return // Numeric kinds are normalized before the switch.
+		return
 
 	case reflect.String:
 		writeHashString(h, hashString, rv.String())
@@ -208,9 +231,10 @@ func hashJSONValueReflect(h *maphash.Hash, rv reflect.Value, active []jsonVisit)
 			_ = h.WriteByte(hashUnsupported)
 			return
 		}
+
 		writeHashLength(h, hashArray, rv.Len())
 		for i := range rv.Len() {
-			hashJSONValueReflect(h, rv.Index(i), active)
+			hashJSONValueReflect(h, rv.Index(i), active, scratch)
 		}
 
 	case reflect.Map:
@@ -218,20 +242,28 @@ func hashJSONValueReflect(h *maphash.Hash, rv reflect.Value, active []jsonVisit)
 			_ = h.WriteByte(hashUnsupported)
 			return
 		}
+
 		active, ok = enterJSONValue(active, rv)
 		if !ok {
 			_ = h.WriteByte(hashUnsupported)
 			return
 		}
-		keys := make([]string, 0, rv.Len())
+
+		var inline [16]string
+		keys := inline[:0]
+		if rv.Len() > len(inline) {
+			keys = make([]string, 0, rv.Len())
+		}
+
 		for _, key := range rv.MapKeys() {
 			keys = append(keys, key.String())
 		}
+
 		slices.Sort(keys)
 		writeHashLength(h, hashObject, len(keys))
 		for _, key := range keys {
 			writeHashString(h, hashString, key)
-			hashJSONValueReflect(h, mapValueByString(rv, key), active)
+			hashJSONValueReflect(h, mapValueByString(rv, key), active, scratch)
 		}
 
 	case reflect.Invalid, reflect.Interface, reflect.Pointer, reflect.Uintptr, reflect.Complex64, reflect.Complex128,
@@ -241,6 +273,7 @@ func hashJSONValueReflect(h *maphash.Hash, rv reflect.Value, active []jsonVisit)
 }
 
 // deepEqualJSON performs deep equality comparison for JSON values.
+
 func deepEqualJSON(a, b any) bool {
 	var aInline, bInline [8]jsonVisit
 	state := jsonComparisonState{a: aInline[:0], b: bInline[:0]}

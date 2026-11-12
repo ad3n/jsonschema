@@ -194,7 +194,7 @@ func (ra *ReferenceAnalyzer) analyzeTypeString(fieldName, typeName string) *Fiel
 
 // analyzeType analyzes a reflect.Type to find struct references
 func (ra *ReferenceAnalyzer) analyzeType(fieldName string, t reflect.Type) *FieldDependency {
-	//exhaustive:ignore - we only need to handle specific types that can contain struct references
+	//exhaustive:ignore
 	switch t.Kind() {
 	case reflect.Struct:
 		// Direct struct reference

@@ -442,7 +442,7 @@ func createValidatorMapping() map[string]ValidatorGenerator {
 			if len(params) == 0 {
 				return ""
 			}
-			return fmt.Sprintf("jsonschema.Pattern(`%s`)", params[0])
+			return fmt.Sprintf("jsonschema.Pattern(%#q)", params[0])
 		},
 		"format": quotedValidator("Format"),
 
@@ -585,7 +585,7 @@ func createValidatorMapping() map[string]ValidatorGenerator {
 				schemaCode = schemaType
 			}
 
-			return fmt.Sprintf("jsonschema.PatternProps(map[string]*jsonschema.Schema{`%s`: %s})", pattern, schemaCode)
+			return fmt.Sprintf("jsonschema.PatternProps(map[string]*jsonschema.Schema{%#q: %s})", pattern, schemaCode)
 		},
 		"propertyNames": func(_ string, params []string) string {
 			if len(params) == 0 {
@@ -598,7 +598,7 @@ func createValidatorMapping() map[string]ValidatorGenerator {
 				// Extract pattern value from JSON like {"pattern":"^[a-z]"}
 				pattern := extractPatternFromJSON(schemaType)
 				if pattern != "" {
-					return fmt.Sprintf("jsonschema.PropertyNames(jsonschema.String(jsonschema.Pattern(`%s`)))", pattern)
+					return fmt.Sprintf("jsonschema.PropertyNames(jsonschema.String(jsonschema.Pattern(%#q)))", pattern)
 				}
 			}
 

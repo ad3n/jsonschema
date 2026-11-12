@@ -1405,8 +1405,8 @@ func TestValidateNilSchemaReturnsError(t *testing.T) {
 
 func TestReleaseDynamicScopeClearsCallerReferences(t *testing.T) {
 	scope := &DynamicScope{
-		schemas:      make([]*Schema, 1, 1),
-		instanceKeys: make([]evaluationInstanceKey, 1, 1),
+		schemas:      make([]*Schema, 1),
+		instanceKeys: make([]evaluationInstanceKey, 1),
 	}
 	scope.schemas[0] = &Schema{Title: new("sensitive")}
 	scope.instanceKeys[0] = newEvaluationInstanceKey("sensitive input")

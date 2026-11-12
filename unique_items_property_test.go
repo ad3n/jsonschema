@@ -4,6 +4,7 @@ import (
 	"context"
 	stdjson "encoding/json"
 	"hash/maphash"
+	"math/big"
 	"os"
 	"os/exec"
 	"testing"
@@ -138,6 +139,7 @@ func FuzzJSONEqualityHashInvariant(f *testing.F) {
 func jsonValueHash(seed maphash.Seed, value any) uint64 {
 	var hash maphash.Hash
 	hash.SetSeed(seed)
-	hashJSONValue(&hash, value)
+	number := Rat{new(big.Rat)}
+	hashJSONValue(&hash, value, &number)
 	return hash.Sum64()
 }

@@ -447,7 +447,7 @@ func getJSONFieldName(field *reflect.StructField) string {
 
 // typeToString converts a reflect.Type to its string representation
 func typeToString(t reflect.Type) string {
-	//exhaustive:ignore - we handle all relevant types for string conversion
+	//exhaustive:ignore
 	switch t.Kind() {
 	case reflect.Pointer:
 		return "*" + typeToString(t.Elem())
@@ -458,7 +458,7 @@ func typeToString(t reflect.Type) string {
 	case reflect.Map:
 		return "map[" + typeToString(t.Key()) + "]" + typeToString(t.Elem())
 	case reflect.Chan:
-		//exhaustive:ignore - we handle all channel directions
+		//exhaustive:ignore
 		switch t.ChanDir() {
 		case reflect.RecvDir:
 			return "<-chan " + typeToString(t.Elem())

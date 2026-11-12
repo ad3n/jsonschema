@@ -813,8 +813,11 @@ func (ds *DynamicScope) Pop() *Schema {
 	if len(ds.schemas) == 0 {
 		return nil
 	}
+
 	lastIndex := len(ds.schemas) - 1
 	schema := ds.schemas[lastIndex]
+	ds.schemas[lastIndex] = nil
+	ds.instanceKeys[lastIndex] = evaluationInstanceKey{}
 	ds.schemas = ds.schemas[:lastIndex]
 	ds.instanceKeys = ds.instanceKeys[:lastIndex]
 	return schema

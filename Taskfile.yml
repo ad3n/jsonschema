@@ -6,10 +6,10 @@ vars:
   GOBIN: '{{.PROJECT_ROOT}}/bin'
   GOLANGCI_LINT_LOCAL_BINARY: '{{.GOBIN}}/golangci-lint'
   REQUIRED_GOLANGCI_LINT_VERSION:
-    sh: cat .golangci.version 2>/dev/null || echo "2.12.2"
+    sh: cat .golangci.version 2>/dev/null || echo "2.15.0"
   GOLANGCI_LINT_BINARY:
     sh: |
-      required="$(cat .golangci.version 2>/dev/null || echo "2.12.2")"
+      required="$(cat .golangci.version 2>/dev/null || echo "2.15.0")"
       for candidate in "$(command -v golangci-lint 2>/dev/null || true)" "{{.GOLANGCI_LINT_LOCAL_BINARY}}"; do
         [ -n "$candidate" ] || continue
         [ -x "$candidate" ] || continue
@@ -190,8 +190,14 @@ tasks:
     desc: Check if go.mod and go.sum are tidy
     cmds:
       - echo "Checking go.mod and go.sum are tidy..."
-      - go mod tidy
-      - git diff --exit-code -- go.mod go.sum
+      - |
+        set -eu
+        tidy_dir="$(mktemp -d)"
+        trap 'rm -rf "$tidy_dir"' EXIT
+        cp go.mod go.sum "$tidy_dir/"
+        go mod tidy
+        diff -u "$tidy_dir/go.mod" go.mod
+        diff -u "$tidy_dir/go.sum" go.sum
 
   yamllint:
     desc: Run yamllint
@@ -201,7 +207,7 @@ tasks:
   vuln:
     desc: Run govulncheck
     cmds:
-      - govulncheck ./...
+      - go run golang.org/x/vuln/cmd/govulncheck@latest ./...
 
   fmt:
     desc: Format Go code

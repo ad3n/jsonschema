@@ -528,7 +528,7 @@ func (g *structTagGenerator) getSchemaFromTypeWithMapping(fieldType reflect.Type
 	}
 
 	// Handle by kind if specific type not found
-	//exhaustive:ignore - we only handle types that are relevant for schema generation
+	//exhaustive:ignore
 	switch kind {
 	case reflect.String:
 		return String(), nil
@@ -994,7 +994,7 @@ func createRuntimeValidatorMapping() map[string]validatorFunc {
 			values := make([]any, len(params))
 			for i, param := range params {
 				// Convert based on field type
-				//exhaustive:ignore - we only handle types that need conversion for enum values
+				//exhaustive:ignore
 				switch fieldType.Kind() {
 				case reflect.String:
 					values[i] = param
@@ -1033,7 +1033,7 @@ func createRuntimeValidatorMapping() map[string]validatorFunc {
 
 			// Convert value based on field type
 			var constValue any = value
-			//exhaustive:ignore - we only handle types that need conversion for const values
+			//exhaustive:ignore
 			switch fieldType.Kind() {
 			case reflect.Int, reflect.Int8, reflect.Int16, reflect.Int32, reflect.Int64:
 				if intVal, err := strconv.Atoi(value); err == nil {
@@ -1081,7 +1081,7 @@ func createRuntimeValidatorMapping() map[string]validatorFunc {
 				actualType = fieldType.Elem()
 			}
 
-			//exhaustive:ignore - we only handle types that need conversion for default values
+			//exhaustive:ignore
 			switch actualType.Kind() {
 			case reflect.Int, reflect.Int8, reflect.Int16, reflect.Int32, reflect.Int64:
 				if intVal, err := strconv.Atoi(value); err == nil {

@@ -54,12 +54,16 @@ func NewRat(value any) *Rat {
 }
 
 func numberRat(value any) (*Rat, bool) {
-	if number, ok := value.(stdjson.Number); ok {
-		if _, ok := jsonNumberToken(number); !ok {
+	return numberRatInto(nil, value)
+}
+
+func numberRatInto(number *Rat, value any) (*Rat, bool) {
+	if token, ok := value.(stdjson.Number); ok {
+		if _, valid := jsonNumberToken(token); !valid {
 			return nil, true
 		}
-		rat, _ := parseRat(number.String())
-		return rat, true
+
+		return parseRatInto(number, token.String()), true
 	}
 
 	rv := reflect.ValueOf(value)
@@ -69,17 +73,37 @@ func numberRat(value any) (*Rat, bool) {
 
 	switch rv.Kind() {
 	case reflect.Int, reflect.Int8, reflect.Int16, reflect.Int32, reflect.Int64:
-		return &Rat{new(big.Rat).SetInt64(rv.Int())}, true
+		if number == nil {
+			number = &Rat{new(big.Rat)}
+		}
+
+		number.SetInt64(rv.Int())
+		return number, true
 	case reflect.Uint, reflect.Uint8, reflect.Uint16, reflect.Uint32, reflect.Uint64:
-		integer := new(big.Int).SetUint64(rv.Uint())
-		return &Rat{new(big.Rat).SetInt(integer)}, true
+		if number == nil {
+			number = &Rat{new(big.Rat)}
+		}
+
+		number.SetUint64(rv.Uint())
+		return number, true
 	case reflect.Float32, reflect.Float64:
 		text := strconv.FormatFloat(rv.Float(), 'g', -1, rv.Type().Bits())
-		rat, _ := parseRat(text)
-		return rat, true
+		return parseRatInto(number, text), true
 	default:
 		return nil, false
 	}
+}
+
+func parseRatInto(number *Rat, text string) *Rat {
+	if number == nil {
+		number = &Rat{new(big.Rat)}
+	}
+
+	if _, ok := number.SetString(text); !ok {
+		return nil
+	}
+
+	return number
 }
 
 func jsonNumberToken(number stdjson.Number) (jsontext.Value, bool) {
@@ -92,11 +116,12 @@ func jsonNumberToken(number stdjson.Number) (jsontext.Value, bool) {
 }
 
 func parseRat(text string) (*Rat, bool) {
-	number := new(big.Rat)
-	if _, ok := number.SetString(text); !ok {
+	number := parseRatInto(nil, text)
+	if number == nil {
 		return nil, false
 	}
-	return &Rat{number}, true
+
+	return number, true
 }
 
 func formatRatJSON(r *Rat) (string, error) {

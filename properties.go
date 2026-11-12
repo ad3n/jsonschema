@@ -6,16 +6,6 @@ import (
 	"strings"
 )
 
-// evaluateProperties checks if the properties in the data object conform to the schemas specified in the schema's properties attribute.
-// According to the JSON Schema Draft 2020-12:
-//   - The value of "properties" must be an object, with each value being a valid JSON Schema.
-//   - Validation succeeds if, for each name that appears in both the instance and as a name within this keyword's value, the child instance for that name successfully validates against the corresponding schema.
-//   - This function also affects the validation of "additionalProperties" and "unevaluatedProperties" by determining which properties have been evaluated.
-//
-// This method ensures that each property in the data matches its defined schema.
-// If a property does not conform, it returns a EvaluationError detailing the issue with that property.
-//
-// Reference: https://json-schema.org/draft/2020-12/json-schema-core#name-properties
 func evaluateProperties(
 	schema *Schema, object map[string]any, evaluatedProps map[string]bool,
 	_ map[int]bool, dynamicScope *DynamicScope,
@@ -39,9 +29,10 @@ func evaluateProperties(
 		}
 
 		if result != nil {
-			result.SetEvaluationPath(fmt.Sprintf("/properties/%s", propName)).
-				SetSchemaLocation(schema.SchemaLocation(fmt.Sprintf("/properties/%s", propName))).
-				SetInstanceLocation(fmt.Sprintf("/%s", propName))
+			propertyPath := "/properties/" + propName
+			result.SetEvaluationPath(propertyPath).
+				SetSchemaLocation(schema.SchemaLocation(propertyPath)).
+				SetInstanceLocation("/" + propName)
 
 			results = append(results, result)
 
@@ -58,12 +49,14 @@ func evaluateProperties(
 			map[string]any{"property": fmt.Sprintf("'%s'", invalidProperties[0])},
 		)
 	}
+
 	if len(invalidProperties) > 1 {
 		slices.Sort(invalidProperties)
 		quotedProperties := make([]string, len(invalidProperties))
 		for i, prop := range invalidProperties {
 			quotedProperties[i] = fmt.Sprintf("'%s'", prop)
 		}
+
 		return results, NewEvaluationError(
 			"properties", "properties_mismatch",
 			"Properties {properties} do not match their schemas",
