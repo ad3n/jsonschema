@@ -2,307 +2,97 @@ package main
 
 import (
 	"fmt"
-	"go/ast"
-	"go/types"
-	"reflect"
 	"slices"
 	"strings"
 
 	"github.com/ad3n/jsonschema"
-	"github.com/ad3n/jsonschema/pkg/tagparser"
 )
 
-// DependencyGraph represents the dependency relationships between structs
-type DependencyGraph struct {
-	nodes     map[string]*StructNode // All discovered structs
-	edges     map[string][]string    // Dependencies: struct -> [dependent structs]
-	cycles    [][]string             // Detected circular dependencies
-	processed map[string]bool        // Track processing status
-}
+type (
+	DependencyGraph struct {
+		nodes  map[string]*StructNode
+		edges  map[string][]string
+		cycles [][]string
+	}
 
-// StructNode represents a single struct in the dependency graph
-type StructNode struct {
-	Name         string            // Struct name
-	PackageName  string            // Package name
-	FilePath     string            // Source file path
-	Fields       []FieldDependency // Field dependencies
-	HasJSONTag   bool              // Whether struct has jsonschema tags
-	IsReferenced bool              // Whether other structs reference this
-}
+	StructNode struct {
+		IsReferenced bool
+	}
 
-// FieldDependency represents a field that references another struct
-type FieldDependency struct {
-	FieldName    string // Field name in current struct
-	ReferenceTo  string // Referenced struct name
-	IsPointer    bool   // Whether it's a pointer reference
-	IsSlice      bool   // Whether it's a slice reference
-	IsMap        bool   // Whether it's a map reference
-	MapValueType string // If map, what's the value type
-}
+	ReferenceAnalyzer struct {
+		graph *DependencyGraph
+	}
+)
 
-// ReferenceAnalyzer analyzes struct dependencies and builds dependency graph
-type ReferenceAnalyzer struct {
-	graph       *DependencyGraph
-	typeChecker *types.Config
-	info        *types.Info
-}
-
-// NewReferenceAnalyzer creates a new reference analyzer
 func NewReferenceAnalyzer() *ReferenceAnalyzer {
 	return &ReferenceAnalyzer{
 		graph: &DependencyGraph{
-			nodes:     make(map[string]*StructNode),
-			edges:     make(map[string][]string),
-			cycles:    [][]string{},
-			processed: make(map[string]bool),
-		},
-		typeChecker: &types.Config{},
-		info: &types.Info{
-			Types: make(map[ast.Expr]types.TypeAndValue),
-			Defs:  make(map[*ast.Ident]types.Object),
-			Uses:  make(map[*ast.Ident]types.Object),
+			nodes: make(map[string]*StructNode),
+			edges: make(map[string][]string),
 		},
 	}
 }
 
-// AnalyzePackageDependencies analyzes all struct dependencies in a package
 func (ra *ReferenceAnalyzer) AnalyzePackageDependencies(structInfos []*GenerationInfo) error {
-	// First pass: register all structs as nodes
 	for _, structInfo := range structInfos {
-		node := &StructNode{
-			Name:        structInfo.Name,
-			PackageName: structInfo.Package,
-			FilePath:    structInfo.FilePath,
-			Fields:      []FieldDependency{},
-			HasJSONTag:  len(structInfo.Fields) > 0,
-		}
-
-		ra.graph.nodes[structInfo.Name] = node
+		ra.graph.nodes[structInfo.Name] = &StructNode{}
 	}
 
-	// Second pass: analyze field dependencies
 	for _, structInfo := range structInfos {
-		err := ra.analyzeStructDependencies(structInfo)
-		if err != nil {
+		if err := ra.analyzeStructDependencies(structInfo); err != nil {
 			return fmt.Errorf("failed to analyze dependencies for struct %s: %w", structInfo.Name, err)
 		}
 	}
 
-	// Third pass: detect circular dependencies
 	return ra.detectCircularDependencies()
 }
 
-// analyzeStructDependencies analyzes dependencies for a single struct
 func (ra *ReferenceAnalyzer) analyzeStructDependencies(structInfo *GenerationInfo) error {
-	node := ra.graph.nodes[structInfo.Name]
-	if node == nil {
+	if ra.graph.nodes[structInfo.Name] == nil {
 		return fmt.Errorf("%w: %s", jsonschema.ErrStructNodeNotFound, structInfo.Name)
 	}
 
-	// Analyze each field for struct references
 	for i := range structInfo.Fields {
-		deps := ra.extractFieldDependencies(&structInfo.Fields[i])
-		node.Fields = append(node.Fields, deps...)
+		dependency := ra.analyzeTypeString(structInfo.Fields[i].TypeName)
+		if dependency == "" {
+			continue
+		}
 
-		// Add edges to dependency graph
-		for _, dep := range deps {
-			ra.addEdge(structInfo.Name, dep.ReferenceTo)
-
-			// Mark referenced struct
-			if refNode := ra.graph.nodes[dep.ReferenceTo]; refNode != nil {
-				refNode.IsReferenced = true
-			}
+		ra.addEdge(structInfo.Name, dependency)
+		if node := ra.graph.nodes[dependency]; node != nil {
+			node.IsReferenced = true
 		}
 	}
 
 	return nil
 }
 
-// extractFieldDependencies extracts struct dependencies from a single field
-func (ra *ReferenceAnalyzer) extractFieldDependencies(field *tagparser.FieldInfo) []FieldDependency {
-	if field.Type != nil {
-		dep := ra.analyzeType(field.Name, field.Type)
-		if dep == nil {
-			return nil
-		}
-		return []FieldDependency{*dep}
-	}
-
-	if field.TypeName == "" {
-		return nil
-	}
-
-	dep := ra.analyzeTypeString(field.Name, field.TypeName)
-	if dep == nil {
-		return nil
-	}
-	return []FieldDependency{*dep}
-}
-
-// analyzeTypeString analyzes a type name string to find struct references (for testing)
-func (ra *ReferenceAnalyzer) analyzeTypeString(fieldName, typeName string) *FieldDependency {
-	// Remove pointer prefix
+func (ra *ReferenceAnalyzer) analyzeTypeString(typeName string) string {
 	typeName = strings.TrimPrefix(typeName, "*")
-
-	// Handle slice types
-	if after, ok := strings.CutPrefix(typeName, "[]"); ok {
-		elemType := after
-		elemType = strings.TrimPrefix(elemType, "*") // Handle []*Type
-		if ra.isCustomStruct(elemType) {
-			return &FieldDependency{
-				FieldName:   fieldName,
-				ReferenceTo: elemType,
-				IsPointer:   strings.Contains(typeName, "*"),
-				IsSlice:     true,
-				IsMap:       false,
-			}
+	if element, ok := strings.CutPrefix(typeName, "[]"); ok {
+		element = strings.TrimPrefix(element, "*")
+		if ra.isCustomStruct(element) {
+			return element
 		}
 	}
 
-	// Handle map types
 	if mapType, ok := strings.CutPrefix(typeName, "map["); ok {
-		// Extract value type from map[keyType]valueType
-		if endIdx := strings.LastIndex(mapType, "]"); endIdx != -1 && endIdx < len(mapType)-1 {
-			valueType := mapType[endIdx+1:]
-			valueType = strings.TrimPrefix(valueType, "*") // Handle map[string]*Type
-			if ra.isCustomStruct(valueType) {
-				return &FieldDependency{
-					FieldName:    fieldName,
-					ReferenceTo:  valueType,
-					IsPointer:    strings.Contains(typeName, "*"),
-					IsSlice:      false,
-					IsMap:        true,
-					MapValueType: valueType,
-				}
+		if end := strings.LastIndex(mapType, "]"); end != -1 && end < len(mapType)-1 {
+			value := strings.TrimPrefix(mapType[end+1:], "*")
+			if ra.isCustomStruct(value) {
+				return value
 			}
 		}
 	}
 
-	// Handle direct struct reference
 	if ra.isCustomStruct(typeName) {
-		return &FieldDependency{
-			FieldName:   fieldName,
-			ReferenceTo: typeName,
-			IsPointer:   strings.HasPrefix(fieldName, "*"),
-			IsSlice:     false,
-			IsMap:       false,
-		}
+		return typeName
 	}
 
-	return nil
+	return ""
 }
 
-// analyzeType analyzes a reflect.Type to find struct references
-func (ra *ReferenceAnalyzer) analyzeType(fieldName string, t reflect.Type) *FieldDependency {
-	//exhaustive:ignore
-	switch t.Kind() {
-	case reflect.Struct:
-		// Direct struct reference
-		structName := ra.extractStructName(t)
-		if structName != "" && ra.isCustomStruct(structName) {
-			return &FieldDependency{
-				FieldName:   fieldName,
-				ReferenceTo: structName,
-				IsPointer:   false,
-				IsSlice:     false,
-				IsMap:       false,
-			}
-		}
-
-	case reflect.Pointer:
-		// Pointer to struct
-		elemType := t.Elem()
-		if elemType.Kind() == reflect.Struct {
-			structName := ra.extractStructName(elemType)
-			if structName != "" && ra.isCustomStruct(structName) {
-				return &FieldDependency{
-					FieldName:   fieldName,
-					ReferenceTo: structName,
-					IsPointer:   true,
-					IsSlice:     false,
-					IsMap:       false,
-				}
-			}
-		}
-
-	case reflect.Slice:
-		// Slice of structs
-		elemType := t.Elem()
-		if elemType.Kind() == reflect.Struct {
-			structName := ra.extractStructName(elemType)
-			if structName != "" && ra.isCustomStruct(structName) {
-				return &FieldDependency{
-					FieldName:   fieldName,
-					ReferenceTo: structName,
-					IsPointer:   false,
-					IsSlice:     true,
-					IsMap:       false,
-				}
-			}
-		}
-		// Handle slice of pointers to structs
-		if elemType.Kind() == reflect.Pointer && elemType.Elem().Kind() == reflect.Struct {
-			structName := ra.extractStructName(elemType.Elem())
-			if structName != "" && ra.isCustomStruct(structName) {
-				return &FieldDependency{
-					FieldName:   fieldName,
-					ReferenceTo: structName,
-					IsPointer:   true,
-					IsSlice:     true,
-					IsMap:       false,
-				}
-			}
-		}
-
-	case reflect.Map:
-		// Map with struct values
-		valueType := t.Elem()
-		if valueType.Kind() == reflect.Struct {
-			structName := ra.extractStructName(valueType)
-			if structName != "" && ra.isCustomStruct(structName) {
-				return &FieldDependency{
-					FieldName:    fieldName,
-					ReferenceTo:  structName,
-					IsPointer:    false,
-					IsSlice:      false,
-					IsMap:        true,
-					MapValueType: structName,
-				}
-			}
-		}
-		// Handle map with pointer to struct values
-		if valueType.Kind() == reflect.Pointer && valueType.Elem().Kind() == reflect.Struct {
-			structName := ra.extractStructName(valueType.Elem())
-			if structName != "" && ra.isCustomStruct(structName) {
-				return &FieldDependency{
-					FieldName:    fieldName,
-					ReferenceTo:  structName,
-					IsPointer:    true,
-					IsSlice:      false,
-					IsMap:        true,
-					MapValueType: structName,
-				}
-			}
-		}
-	}
-
-	return nil
-}
-
-// extractStructName extracts the struct name from a reflect.Type
-func (ra *ReferenceAnalyzer) extractStructName(t reflect.Type) string {
-	// Get the type name
-	if t.Name() != "" {
-		return t.Name()
-	}
-
-	// Handle anonymous structs or complex types
-	return t.String()
-}
-
-// isCustomStruct checks if a type name represents a custom struct (not built-in)
 func (ra *ReferenceAnalyzer) isCustomStruct(typeName string) bool {
-	// Skip built-in types
 	builtinTypes := map[string]bool{
 		"string": true, "int": true, "int8": true, "int16": true, "int32": true, "int64": true,
 		"uint": true, "uint8": true, "uint16": true, "uint32": true, "uint64": true,
@@ -314,7 +104,6 @@ func (ra *ReferenceAnalyzer) isCustomStruct(typeName string) bool {
 		return false
 	}
 
-	// Skip standard library types (basic heuristic)
 	if strings.Contains(typeName, "time.Time") ||
 		strings.Contains(typeName, "json.") ||
 		strings.Contains(typeName, "net.") ||
@@ -322,7 +111,6 @@ func (ra *ReferenceAnalyzer) isCustomStruct(typeName string) bool {
 		return false
 	}
 
-	// Consider it a custom struct if it starts with uppercase (exported)
 	if len(typeName) > 0 && typeName[0] >= 'A' && typeName[0] <= 'Z' {
 		return true
 	}
@@ -330,21 +118,18 @@ func (ra *ReferenceAnalyzer) isCustomStruct(typeName string) bool {
 	return false
 }
 
-// addEdge adds a dependency edge to the graph
 func (ra *ReferenceAnalyzer) addEdge(from, to string) {
 	if ra.graph.edges[from] == nil {
 		ra.graph.edges[from] = []string{}
 	}
 
-	// Check if edge already exists
 	if slices.Contains(ra.graph.edges[from], to) {
-		return // Edge already exists
+		return
 	}
 
 	ra.graph.edges[from] = append(ra.graph.edges[from], to)
 }
 
-// detectCircularDependencies detects circular dependencies using DFS
 func (ra *ReferenceAnalyzer) detectCircularDependencies() error {
 	visited := make(map[string]bool)
 	recStack := make(map[string]bool)
@@ -361,21 +146,21 @@ func (ra *ReferenceAnalyzer) detectCircularDependencies() error {
 	return nil
 }
 
-// dfsDetectCycle performs DFS to detect cycles
 func (ra *ReferenceAnalyzer) dfsDetectCycle(node string, visited, recStack map[string]bool, path []string) []string {
 	visited[node] = true
 	recStack[node] = true
 	path = append(path, node)
 
-	// Visit all dependent nodes
 	for _, neighbor := range ra.graph.edges[node] {
 		if !visited[neighbor] {
 			cycle := ra.dfsDetectCycle(neighbor, visited, recStack, path)
 			if cycle != nil {
 				return cycle
 			}
-		} else if recStack[neighbor] {
-			// Found cycle - extract the cycle path
+			continue
+		}
+
+		if recStack[neighbor] {
 			cycleStart := -1
 			for i, p := range path {
 				if p == neighbor {
@@ -383,6 +168,7 @@ func (ra *ReferenceAnalyzer) dfsDetectCycle(node string, visited, recStack map[s
 					break
 				}
 			}
+
 			if cycleStart >= 0 {
 				return append(path[cycleStart:], neighbor)
 			}
@@ -393,33 +179,21 @@ func (ra *ReferenceAnalyzer) dfsDetectCycle(node string, visited, recStack map[s
 	return nil
 }
 
-// DependencyGraph returns the built dependency graph
-func (ra *ReferenceAnalyzer) DependencyGraph() *DependencyGraph {
-	return ra.graph
-}
-
-// HasCycles returns whether circular dependencies were detected
 func (ra *ReferenceAnalyzer) HasCycles() bool {
 	return len(ra.graph.cycles) > 0
 }
 
-// Cycles returns all detected cycles
 func (ra *ReferenceAnalyzer) Cycles() [][]string {
 	return ra.graph.cycles
 }
 
-// NeedsRefGeneration determines if a struct needs $ref generation
 func (ra *ReferenceAnalyzer) NeedsRefGeneration(structName string) bool {
 	node := ra.graph.nodes[structName]
 	if node == nil {
 		return false
 	}
 
-	// Need $ref if:
-	// 1. Struct is referenced by others AND has cycles
-	// 2. Struct is part of any cycle
 	if node.IsReferenced {
-		// Check if this struct is part of any cycle
 		for _, cycle := range ra.graph.cycles {
 			if slices.Contains(cycle, structName) {
 				return true
@@ -430,7 +204,6 @@ func (ra *ReferenceAnalyzer) NeedsRefGeneration(structName string) bool {
 	return false
 }
 
-// ReferencedStructs returns all structs that need to be included in $defs
 func (ra *ReferenceAnalyzer) ReferencedStructs(rootStruct string) []string {
 	var referenced []string
 	visited := make(map[string]bool)
@@ -440,7 +213,6 @@ func (ra *ReferenceAnalyzer) ReferencedStructs(rootStruct string) []string {
 	return referenced
 }
 
-// collectReferencedStructs recursively collects all referenced structs
 func (ra *ReferenceAnalyzer) collectReferencedStructs(structName string, visited map[string]bool, result *[]string) {
 	if visited[structName] {
 		return
@@ -448,7 +220,6 @@ func (ra *ReferenceAnalyzer) collectReferencedStructs(structName string, visited
 
 	visited[structName] = true
 
-	// Add dependencies
 	for _, dep := range ra.graph.edges[structName] {
 		if !visited[dep] {
 			*result = append(*result, dep)

@@ -24,10 +24,8 @@ type GenerationInfo struct {
 	Name        string                // Struct name
 	Package     string                // Package name
 	Fields      []tagparser.FieldInfo // Field information from tagparser
-	Imports     []string              // Required imports
 	HasGenerate bool                  // Whether struct has //go:generate directive
 	FilePath    string                // Source file path
-	StructType  reflect.Type          // Struct type for validation
 }
 
 // NewStructAnalyzer creates a new AST analyzer instance
@@ -142,16 +140,10 @@ func (a *StructAnalyzer) analyzeStruct(typeSpec *ast.TypeSpec, structType *ast.S
 		return nil, fmt.Errorf("failed to analyze fields of struct %s: %w", structName, err)
 	}
 
-	// Determine required imports
-	imports := []string{
-		"github.com/ad3n/jsonschema", // Always need jsonschema package
-	}
-
 	info := &GenerationInfo{
 		Name:     structName,
 		Package:  pkgName,
 		Fields:   fields,
-		Imports:  imports,
 		FilePath: fileName,
 	}
 
@@ -306,11 +298,6 @@ func (a *StructAnalyzer) NeedsGeneration(info *GenerationInfo) bool {
 
 	// Or if struct has //go:generate directive
 	return info.HasGenerate
-}
-
-// DependencyGraph returns the built dependency graph
-func (a *StructAnalyzer) DependencyGraph() *DependencyGraph {
-	return a.referenceAnalyzer.DependencyGraph()
 }
 
 // HasCircularDependencies returns whether circular dependencies were detected

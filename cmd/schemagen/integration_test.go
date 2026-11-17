@@ -59,7 +59,7 @@ func TestStructAnalyzer_AnalyzePackageBuildsDependencyGraph(t *testing.T) {
 	assert.Equal(t, "testdata", userInfo.Package)
 	assert.True(t, analyzer.NeedsGeneration(userInfo))
 
-	graph := analyzer.DependencyGraph()
+	graph := analyzer.referenceAnalyzer.graph
 	require.NotNil(t, graph)
 	require.Contains(t, graph.nodes, "Category")
 	assert.Contains(t, graph.edges["Category"], "Product")

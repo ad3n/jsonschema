@@ -1,7 +1,6 @@
 package main
 
 import (
-	"reflect"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -10,64 +9,19 @@ import (
 	"github.com/ad3n/jsonschema/pkg/tagparser"
 )
 
-func TestReferenceAnalyzer_AnalyzeTypeStringDetectsMapValueStruct(t *testing.T) {
-	t.Parallel()
-
-	analyzer := NewReferenceAnalyzer()
-
-	dep := analyzer.analyzeTypeString("Lookup", "map[string]*Profile")
-
-	require.NotNil(t, dep)
-	assert.Equal(t, "Lookup", dep.FieldName)
-	assert.Equal(t, "Profile", dep.ReferenceTo)
-	assert.True(t, dep.IsPointer)
-	assert.False(t, dep.IsSlice)
-	assert.True(t, dep.IsMap)
-	assert.Equal(t, "Profile", dep.MapValueType)
-}
-
-func TestReferenceAnalyzer_AnalyzePackageDependenciesFromReflectTypes(t *testing.T) {
-	type Address struct {
-		Street string
+func TestReferenceAnalyzer_AnalyzePackageDependenciesFromTypeNames(t *testing.T) {
+	for _, typeName := range []string{"Profile", "*Profile", "[]Profile", "[]*Profile", "map[string]Profile", "map[string]*Profile"} {
+		t.Run(typeName, func(t *testing.T) {
+			analyzer := NewReferenceAnalyzer()
+			infos := []*GenerationInfo{
+				{Name: "User", Fields: []tagparser.FieldInfo{{Name: "Value", TypeName: typeName}}},
+				{Name: "Profile"},
+			}
+			require.NoError(t, analyzer.AnalyzePackageDependencies(infos))
+			assert.Equal(t, []string{"Profile"}, analyzer.ReferencedStructs("User"))
+			assert.False(t, analyzer.HasCycles())
+		})
 	}
-	type Profile struct {
-		Address Address
-	}
-
-	analyzer := NewReferenceAnalyzer()
-	infos := []*GenerationInfo{
-		{
-			Name:    "User",
-			Package: "sample",
-			Fields: []tagparser.FieldInfo{
-				{Name: "Address", Type: reflect.TypeFor[Address]()},
-				{Name: "Profile", Type: reflect.TypeFor[*Profile]()},
-				{Name: "History", Type: reflect.TypeFor[[]Address]()},
-				{Name: "PointerHistory", Type: reflect.TypeFor[[]*Profile]()},
-				{Name: "Lookup", Type: reflect.TypeFor[map[string]*Profile]()},
-			},
-		},
-		{Name: "Address", Package: "sample"},
-		{Name: "Profile", Package: "sample"},
-	}
-
-	err := analyzer.AnalyzePackageDependencies(infos)
-	require.NoError(t, err)
-
-	graph := analyzer.DependencyGraph()
-	assert.Contains(t, graph.edges["User"], "Address")
-	assert.Contains(t, graph.edges["User"], "Profile")
-
-	userNode := graph.nodes["User"]
-	require.NotNil(t, userNode)
-	require.Len(t, userNode.Fields, 5)
-	assert.False(t, userNode.Fields[0].IsPointer)
-	assert.True(t, userNode.Fields[1].IsPointer)
-	assert.True(t, userNode.Fields[2].IsSlice)
-	assert.True(t, userNode.Fields[3].IsPointer)
-	assert.True(t, userNode.Fields[3].IsSlice)
-	assert.True(t, userNode.Fields[4].IsMap)
-	assert.Equal(t, "Profile", userNode.Fields[4].MapValueType)
 }
 
 func TestReferenceAnalyzer_DetectsCyclesFromTypeNames(t *testing.T) {
@@ -85,7 +39,41 @@ func TestReferenceAnalyzer_DetectsCyclesFromTypeNames(t *testing.T) {
 
 	assert.True(t, analyzer.HasCycles())
 	assert.True(t, analyzer.NeedsRefGeneration("Node"))
-	assert.Contains(t, analyzer.DependencyGraph().edges["Node"], "Node")
+	assert.Contains(t, analyzer.graph.edges["Node"], "Node")
+}
+
+func TestReferenceAnalyzerDoesNotRetainCallerFields(t *testing.T) {
+	analyzer := NewReferenceAnalyzer()
+	fields := []tagparser.FieldInfo{{Name: "Value", TypeName: "Profile"}}
+	infos := []*GenerationInfo{{Name: "User", Fields: fields}, {Name: "Profile"}}
+	require.NoError(t, analyzer.AnalyzePackageDependencies(infos))
+	fields[0].TypeName = "Other"
+	infos[0].Name = "Changed"
+	references := analyzer.ReferencedStructs("User")
+	require.Equal(t, []string{"Profile"}, references)
+	references[0] = "Changed"
+	assert.Equal(t, []string{"Profile"}, analyzer.ReferencedStructs("User"))
+}
+
+func FuzzReferenceAnalyzerTypeNames(f *testing.F) {
+	for _, name := range []string{"Node", "*Node", "[]*Node", "map[string]*Node", "", "map[", "string"} {
+		f.Add(name)
+	}
+
+	f.Fuzz(func(t *testing.T, name string) {
+		if len(name) > 1024 {
+			t.Skip()
+		}
+
+		analyzer := NewReferenceAnalyzer()
+		require.NoError(t, analyzer.AnalyzePackageDependencies([]*GenerationInfo{
+			{Name: "Node", Fields: []tagparser.FieldInfo{{TypeName: name}}},
+		}))
+		references := analyzer.ReferencedStructs("Node")
+		require.LessOrEqual(t, len(references), 1)
+		assert.NotContains(t, references, "Node")
+		assert.Equal(t, analyzer.HasCycles(), analyzer.NeedsRefGeneration("Node"))
+	})
 }
 
 // Basic Reference Tests
